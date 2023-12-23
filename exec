@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-maxParallel=2
+maxParallel=1
 
-echo "parallelism,TimeTaken(virtual),TimeTaken(platform),#concurrent(virtual),#concurrent(platform),#threads(virtual),#threads(platform)"
+echo "parallelism,TimeTaken(virtual),TimeTaken(platform),TimeTaken(coroutine),#concurrent(virtual),#concurrent(platform),#concurrent(coroutine),#threads(virtual),#threads(platform),#threads(coroutine)"
 
 for ((i = 1; i <= maxParallel; i++)); do
   java -jar build/libs/VirtualThreadsVsCoroutine-1.0.0.jar "$i"

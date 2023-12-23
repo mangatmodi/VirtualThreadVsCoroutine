@@ -1,8 +1,19 @@
 package com.mangatmodi.VirtualThreadsVsCoroutine
 
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 import kotlin.math.max
 import kotlin.time.measureTime
 import kotlin.time.toJavaDuration
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import java.net.URI
+import java.nio.ByteBuffer
+import java.nio.channels.AsynchronousFileChannel
+import java.nio.channels.CompletionHandler
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ArrayBlockingQueue
@@ -15,22 +26,22 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
-private const val BASE_DIRECTORY = "/Users/mmod/workspace/virtualThreadTest/"
-fun fileRead(parallelism: Int, virtual: Boolean): Statistic {
+const val BASE_DIRECTORY = "/Users/mmod/workspace/virtualThreadTest/"
+fun fileRead(parallelism: Int, mode: ConcurrencyModel): Statistic {
     System.setProperty("jdk.virtualThreadScheduler.maxPoolSize", parallelism.toString())
-    val executorService =
-        if (!virtual) {
-            ThreadPoolExecutor(
-                parallelism,
-                parallelism,
-                1,
-                TimeUnit.MINUTES,
-                ArrayBlockingQueue(1),
-                ThreadPoolExecutor.CallerRunsPolicy()
-            )
-        } else {
-            Executors.newVirtualThreadPerTaskExecutor()
-        }
+    val executorService = when (mode) {
+        ConcurrencyModel.PLATFORM -> ThreadPoolExecutor(
+            parallelism,
+            parallelism,
+            1,
+            TimeUnit.MINUTES,
+            ArrayBlockingQueue(1),
+            ThreadPoolExecutor.CallerRunsPolicy()
+        )
+
+        ConcurrencyModel.VIRTUAL -> Executors.newVirtualThreadPerTaskExecutor()
+        ConcurrencyModel.COROUTINE -> TODO()
+    }
 
     val active = AtomicInteger(0)
     var maxActive = 0
@@ -44,19 +55,18 @@ fun fileRead(parallelism: Int, virtual: Boolean): Statistic {
         }
     }.start()
 
+    val totalSize = AtomicLong(0)
+
     val timeTaken = measureTime {
-        val totalSize = AtomicLong(0)
         val todo = mutableListOf<Callable<Any>>()
         for (i in (1..100)) {
             todo.add(Callable {
                 active.incrementAndGet()
-                val bytes = Files.readAllBytes(Path.of("${BASE_DIRECTORY}file${i}"))
+                val path = Path.of("${BASE_DIRECTORY}file${i}")
+
+                val bytes = Files.readAllBytes(path)
                 totalSize.addAndGet(bytes.size.toLong())
-                val threadName = if (virtual) {
-                    Thread.currentThread().toString().split("@")[1]
-                } else {
-                    Thread.currentThread().name
-                }
+                val threadName = threadName(mode)
                 threads.add(threadName)
                 active.decrementAndGet()
             })
@@ -73,5 +83,12 @@ fun fileRead(parallelism: Int, virtual: Boolean): Statistic {
         timeTaken = timeTaken.toJavaDuration(),
         maxActive = maxActive,
         numberOfThreadsUsed = threads.size,
+        totalBytes = totalSize.get()
     )
+}
+
+fun threadName(mode: ConcurrencyModel) = when (mode) {
+    ConcurrencyModel.PLATFORM -> Thread.currentThread().name
+    ConcurrencyModel.VIRTUAL -> Thread.currentThread().toString().split("@")[1]
+    ConcurrencyModel.COROUTINE -> TODO()
 }

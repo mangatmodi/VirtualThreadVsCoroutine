@@ -14,6 +14,7 @@ repositories {
 }
 
 dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.7.3")
     testImplementation(kotlin("test"))
 }
 
@@ -23,6 +24,10 @@ tasks.test {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "21"
+}
+
+tasks.withType<Jar>().configureEach {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
 
 val fatJar = task<Jar>("fatJar") {
