@@ -87,3 +87,45 @@ suspend fun AsynchronousFileChannel.aRead(pos: Long, buf: ByteBuffer): Int =
             }
         })
     }
+
+
+suspend fun coroutineReadFileNonAsynchronous(parallelism: Int): Statistic {
+    val active = AtomicInteger(0)
+    var maxActive = 0
+    val threads = ConcurrentHashMap.newKeySet<String>()
+    val exit = AtomicBoolean(false)
+    Thread {
+        while (true) {
+            maxActive = max(maxActive, active.get())
+            Thread.sleep(1)
+            if (exit.get()) return@Thread else continue
+        }
+    }.start()
+
+    val totalSize = AtomicLong(0)
+    val timeTaken = measureTime {
+        val list = (1..100).map { i ->
+            val path = Path.of("${BASE_DIRECTORY}file${i}")
+
+            CoroutineScope(Dispatchers.IO.limitedParallelism(parallelism)).async {
+                active.incrementAndGet()
+                val bytes = Files.readAllBytes(path)
+                totalSize.addAndGet(bytes.size.toLong())
+                val threadName = Thread.currentThread().name
+                threads.add(threadName)
+                active.decrementAndGet()
+            }
+        }
+
+        list.awaitAll()
+    }
+
+    exit.set(true)
+
+    return Statistic(
+        timeTaken = timeTaken.toJavaDuration(),
+        maxActive = maxActive,
+        numberOfThreadsUsed = threads.size,
+        totalBytes = totalSize.get()
+    )
+}

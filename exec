@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-maxParallel=1
+maxParallel=20
 
 echo "parallelism,TimeTaken(virtual),TimeTaken(platform),TimeTaken(coroutine),#concurrent(virtual),#concurrent(platform),#concurrent(coroutine),#threads(virtual),#threads(platform),#threads(coroutine)"
 
